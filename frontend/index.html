@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timetable Generator</title>
+<style>
+  :root{
+    --ink:#1c2130; --paper:#faf9f6; --line:#e2e0d8; --sub:#6d7280;
+    --accent:#2f5d4f; --accent-soft:#e4ede9; --warn:#b8532f; --warn-soft:#f6e6de;
+    --lab:#3c5a8a; --lab-soft:#e6ecf5;
+    --radius:8px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 "Iowan Old Style","Georgia",serif;}
+  header{display:flex;align-items:baseline;justify-content:space-between;padding:20px 28px;border-bottom:1px solid var(--line);flex-wrap:wrap;gap:10px}
+  header h1{font-size:20px;margin:0;font-weight:600;letter-spacing:.2px}
+  header .sub{color:var(--sub);font-size:13px;font-family:ui-sans-serif,system-ui,sans-serif}
+  nav{display:flex;gap:2px;padding:0 28px;border-bottom:1px solid var(--line);font-family:ui-sans-serif,system-ui,sans-serif;font-size:14px;flex-wrap:wrap}
+  nav button{background:none;border:none;padding:12px 16px;cursor:pointer;color:var(--sub);border-bottom:2px solid transparent;font-size:14px}
+  nav button.active{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+  main{padding:24px 28px;max-width:1180px}
+  .view{display:none}
+  .view.active{display:block}
+  h2{font-size:17px;margin:0 0 4px}
+  p.hint{color:var(--sub);font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;margin:0 0 16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+  table{width:100%;border-collapse:collapse;font-family:ui-sans-serif,system-ui,sans-serif;font-size:13.5px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--sub);font-weight:600;font-size:12px;text-transform:none}
+  tr:hover td{background:#fafaf8}
+  form.inline{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:12px;font-family:ui-sans-serif,system-ui,sans-serif}
+  form.inline label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--sub)}
+  input,select{font:inherit;font-family:ui-sans-serif,system-ui,sans-serif;padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:#fff;font-size:13.5px}
+  input[type=number]{width:80px}
+  button.btn{font-family:ui-sans-serif,system-ui,sans-serif;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:13.5px;cursor:pointer}
+  button.btn.secondary{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  button.btn.warn{background:var(--warn)}
+  button.btn:disabled{opacity:.5;cursor:default}
+  button.icon{background:none;border:none;color:var(--sub);cursor:pointer;font-size:13px;font-family:ui-sans-serif,system-ui,sans-serif}
+  button.icon:hover{color:var(--warn)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .badge{font-family:ui-sans-serif,system-ui,sans-serif;font-size:12px;padding:3px 9px;border-radius:99px;font-weight:600}
+  .badge.ok{background:var(--accent-soft);color:var(--accent)}
+  .badge.warn{background:var(--warn-soft);color:var(--warn)}
+  .issue{border-left:3px solid var(--warn);background:var(--warn-soft);padding:10px 12px;border-radius:0 6px 6px 0;margin-bottom:8px;font-family:ui-sans-serif,system-ui,sans-serif;font-size:13.5px}
+  .issue.error{border-color:#a33}
+  .issue .sug{color:var(--sub);font-size:12.5px;margin-top:3px}
+  .tt-wrap{overflow-x:auto}
+  .tt{border-collapse:separate;border-spacing:4px}
+  .tt th{background:none;text-align:center;font-size:12px}
+  .tt td{border:none;vertical-align:top;padding:0}
+  .cell{min-width:118px;min-height:52px;border-radius:6px;padding:6px 8px;font-family:ui-sans-serif,system-ui,sans-serif;font-size:12px;cursor:grab}
+  .cell.theory{background:var(--accent-soft)}
+  .cell.lab{background:var(--lab-soft)}
+  .cell b{display:block;font-size:12.5px;margin-bottom:2px}
+  .cell .meta{color:var(--sub);font-size:11px}
+  .cell.empty{background:#f2f1ec;min-height:52px}
+  .cell.drag-over{outline:2px dashed var(--accent)}
+  .period-col{font-size:11px;color:var(--sub);font-family:ui-sans-serif,system-ui,sans-serif;text-align:right;padding-right:6px !important;white-space:nowrap}
+  .lunch-row td{padding:2px !important}
+  .lunch-bar{background:repeating-linear-gradient(45deg,#eee,#eee 6px,#e4e2d8 6px,#e4e2d8 12px);border-radius:4px;height:14px;font-size:10px;color:var(--sub);text-align:center;line-height:14px;font-family:ui-sans-serif,system-ui,sans-serif}
+  select.picker{margin-bottom:14px}
+  .empty-state{color:var(--sub);font-family:ui-sans-serif,system-ui,sans-serif;font-size:13.5px;padding:20px 0}
+  .stat-bar{background:var(--line);border-radius:4px;height:6px;overflow:hidden;margin-top:4px}
+  .stat-bar span{display:block;height:100%;background:var(--accent)}
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;font-family:ui-sans-serif,system-ui,sans-serif;font-size:13.5px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;max-width:360px}
+  .toast.show{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Timetable Generator</h1>
+    <div class="sub">Weekly class schedule for a multi-division, multi-department college</div>
+  </div>
+  <div class="row" style="margin:0">
+    <button class="btn secondary" onclick="seedDemo('normal')">Load demo data</button>
+    <button class="btn secondary" onclick="seedDemo('impossible')">Load impossible demo</button>
+    <button class="btn warn" onclick="resetAll()">Reset all data</button>
+  </div>
+</header>
+
+<nav id="nav"></nav>
+<main id="main"></main>
+<div class="toast" id="toast"></div>
+
+<script>
+const API = "";
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+let SETTINGS = {days:5, periods:8, lunch_after:4};
+let CACHE = {};
+let TAB = "setup";
+
+const $ = s => document.querySelector(s);
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._h); toast._h = setTimeout(()=>t.classList.remove("show"), 3200);
+}
+async function api(path, opts){
+  const res = await fetch(API + path, {headers:{"Content-Type":"application/json"}, ...opts});
+  const isJson = res.headers.get("content-type")?.includes("json");
+  const body = isJson ? await res.json() : await res.text();
+  if(!res.ok){
+    const msg = typeof body === "object" ? (body.detail?.message || JSON.stringify(body.detail || body)) : body;
+    throw new Error(msg);
+  }
+  return body;
+}
+const get = p => api(p);
+const post = (p,b) => api(p, {method:"POST", body: b?JSON.stringify(b):undefined});
+const put = (p,b) => api(p, {method:"PUT", body: JSON.stringify(b)});
+const del = p => api(p, {method:"DELETE"});
+
+const TABS = [
+  {id:"setup", label:"Setup"},
+  {id:"generate", label:"Generate"},
+  {id:"timetable", label:"Timetable"},
+  {id:"insights", label:"Insights"},
+];
+
+function renderNav(){
+  $("#nav").innerHTML = TABS.map(t=>`<button data-tab="${t.id}" class="${t.id===TAB?'active':''}">${t.label}</button>`).join("");
+  document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>{TAB=b.dataset.tab; render();});
+}
+
+async function loadAll(){
+  const [dept, div, fac, room, subj, asg, unav, settings] = await Promise.all([
+    get("/api/data/departments"), get("/api/data/divisions"), get("/api/data/faculty"),
+    get("/api/data/rooms"), get("/api/data/subjects"), get("/api/data/assignments"),
+    get("/api/data/faculty_unavailability"), get("/api/settings"),
+  ]);
+  CACHE = {departments:dept, divisions:div, faculty:fac, rooms:room, subjects:subj, assignments:asg, unav, settings};
+  SETTINGS = settings;
+}
+function byId(list){ const m={}; list.forEach(r=>m[r.id]=r); return m; }
+function name(list, id, field="name"){ const r = list.find(x=>x.id===id); return r ? r[field] : "—"; }
+
+async function render(){
+  renderNav();
+  const main = $("#main");
+  main.innerHTML = `<div class="empty-state">Loading…</div>`;
+  try{ await loadAll(); } catch(e){ main.innerHTML = `<div class="issue error">${e.message}</div>`; return; }
+  if(TAB==="setup") return renderSetup();
+  if(TAB==="generate") return renderGenerate();
+  if(TAB==="timetable") return renderTimetable();
+  if(TAB==="insights") return renderInsights();
+}
+
+// ---------------------------------------------------------------- SETUP
+function renderSetup(){
+  const c = CACHE;
+  $("#main").innerHTML = `
+  <div class="card">
+    <h2>Schedule shape</h2>
+    <p class="hint">These decide how many slots exist per week. Changing them clears any generated timetable next time you generate.</p>
+    <form class="inline" id="f-settings">
+      <label>Working days<input type="number" name="days" min="1" max="7" value="${SETTINGS.days}"></label>
+      <label>Periods per day<input type="number" name="periods" min="1" max="12" value="${SETTINGS.periods}"></label>
+      <label>Lunch after period<input type="number" name="lunch_after" min="0" max="${SETTINGS.periods-1}" value="${SETTINGS.lunch_after}"></label>
+      <button class="btn" type="submit">Save</button>
+    </form>
+  </div>
+
+  <div class="grid">
+    ${entityCard("departments","Departments", c.departments, [
+      {k:"name",label:"Name"}, {k:"code",label:"Code"}
+    ])}
+    ${entityCard("rooms","Rooms", c.rooms, [
+      {k:"name",label:"Name"}, {k:"capacity",label:"Capacity",type:"number"},
+      {k:"room_type",label:"Type",type:"select",options:["classroom","lab"]}
+    ])}
+    ${entityCard("divisions","Divisions", c.divisions, [
+      {k:"name",label:"Name"},
+      {k:"department_id",label:"Department",type:"select",options:c.departments.map(d=>[d.id,d.name])},
+      {k:"year",label:"Year",type:"number"}, {k:"strength",label:"Strength",type:"number"}
+    ], r=>`${r.name} · ${name(c.departments,r.department_id)} · ${r.strength} students`)}
+    ${entityCard("faculty","Faculty", c.faculty, [
+      {k:"name",label:"Name"},
+      {k:"department_id",label:"Department",type:"select",options:c.departments.map(d=>[d.id,d.name])},
+      {k:"max_periods_per_day",label:"Max periods/day",type:"number"}
+    ], r=>`${r.name} · ${name(c.departments,r.department_id)} · max ${r.max_periods_per_day}/day`)}
+    ${entityCard("subjects","Subjects", c.subjects, [
+      {k:"name",label:"Name"}, {k:"code",label:"Code"},
+      {k:"department_id",label:"Department",type:"select",options:c.departments.map(d=>[d.id,d.name])},
+      {k:"weekly_periods",label:"Weekly periods",type:"number"},
+      {k:"is_lab",label:"Is lab?",type:"select",options:[[0,"No"],[1,"Yes"]]},
+      {k:"lab_block",label:"Lab block length",type:"number"},
+    ], r=>`${r.name} (${r.code}) · ${r.weekly_periods}/wk${r.is_lab?` · lab, block ${r.lab_block}`:""}`)}
+    ${entityCard("assignments","Assignments (division ← subject ← faculty)", c.assignments, [
+      {k:"division_id",label:"Division",type:"select",options:c.divisions.map(d=>[d.id,d.name])},
+      {k:"subject_id",label:"Subject",type:"select",options:c.subjects.map(s=>[s.id,s.name])},
+      {k:"faculty_id",label:"Faculty",type:"select",options:c.faculty.map(f=>[f.id,f.name])},
+    ], r=>`${name(c.divisions,r.division_id)} — ${name(c.subjects,r.subject_id)} — ${name(c.faculty,r.faculty_id)}`)}
+    ${entityCard("faculty_unavailability","Faculty unavailability", c.unav, [
+      {k:"faculty_id",label:"Faculty",type:"select",options:c.faculty.map(f=>[f.id,f.name])},
+      {k:"day",label:"Day",type:"select",options:DAYS.slice(0,SETTINGS.days).map((d,i)=>[i,d])},
+      {k:"period",label:"Period",type:"number"},
+    ], r=>`${name(c.faculty,r.faculty_id)} — ${DAYS[r.day]} P${r.period}`)}
+  </div>`;
+
+  $("#f-settings").onsubmit = async e=>{
+    e.preventDefault();
+    const f = new FormData(e.target);
+    try{ await put("/api/settings", {days:f.get("days"), periods:f.get("periods"), lunch_after:f.get("lunch_after")}); toast("Schedule shape saved."); render(); }
+    catch(err){ toast(err.message); }
+  };
+  document.querySelectorAll("form[data-entity]").forEach(f=>{
+    f.onsubmit = async e=>{
+      e.preventDefault();
+      const t = f.dataset.entity;
+      const body = {};
+      new FormData(f).forEach((v,k)=>{ if(v!=="") body[k]=v; });
+      try{ await post(`/api/data/${t}`, body); toast("Added."); render(); }
+      catch(err){ toast(err.message); }
+    };
+  });
+  document.querySelectorAll("button[data-del]").forEach(b=>{
+    b.onclick = async ()=>{
+      try{ await del(`/api/data/${b.dataset.entity}/${b.dataset.del}`); render(); }
+      catch(err){ toast(err.message); }
+    };
+  });
+}
+
+function entityCard(entity, title, rows, fields, describe){
+  const desc = describe || (r => fields.map(f=>r[f.k]).join(" · "));
+  return `
+  <div class="card">
+    <h2>${title}</h2>
+    <table>
+      <tbody>
+        ${rows.length ? rows.map(r=>`<tr><td>${desc(r)}</td><td style="width:28px;text-align:right"><button class="icon" data-entity="${entity}" data-del="${r.id}">remove</button></td></tr>`).join("")
+          : `<tr><td class="empty-state" style="padding:8px 0">None yet.</td></tr>`}
+      </tbody>
+    </table>
+    <form class="inline" data-entity="${entity}">
+      ${fields.map(f=>{
+        if(f.type==="select"){
+          return `<label>${f.label}<select name="${f.k}">${f.options.map(o=>Array.isArray(o)?`<option value="${o[0]}">${o[1]}</option>`:`<option>${o}</option>`).join("")}</select></label>`;
+        }
+        return `<label>${f.label}<input name="${f.k}" type="${f.type||'text'}" ${f.type==='number'?'min="1"':''} required></label>`;
+      }).join("")}
+      <button class="btn secondary" type="submit">Add</button>
+    </form>
+  </div>`;
+}
+
+// ---------------------------------------------------------------- GENERATE
+async function renderGenerate(){
+  let report = null;
+  try{ report = await get("/api/report"); }catch(e){}
+  $("#main").innerHTML = `
+  <div class="card">
+    <h2>Generate the timetable</h2>
+    <p class="hint">Runs a constraint search over every division, faculty member and room. If a full timetable is impossible, you still get the best partial one plus a plain-English reason for everything that couldn't be placed.</p>
+    <button class="btn" id="go">Generate timetable</button>
+    <span id="status" style="margin-left:10px;font-family:ui-sans-serif,system-ui,sans-serif;font-size:13.5px;color:var(--sub)"></span>
+  </div>
+  <div id="report">${report ? reportHTML(report) : ""}</div>`;
+  $("#go").onclick = async ()=>{
+    $("#go").disabled = true; $("#status").textContent = "Searching…";
+    try{
+      const r = await post("/api/generate");
+      $("#report").innerHTML = reportHTML(r);
+      $("#status").textContent = `Done in ${r.stats.seconds}s.`;
+    }catch(e){ toast(e.message); $("#status").textContent = "Failed."; }
+    $("#go").disabled = false;
+  };
+}
+function reportHTML(r){
+  const badge = r.status==="success" ? `<span class="badge ok">All classes scheduled</span>`
+    : r.status==="partial" ? `<span class="badge warn">Partial — ${r.placed_sessions}/${r.total_sessions} placed</span>`
+    : `<span class="badge warn">Could not schedule</span>`;
+  const issues = (r.issues||[]).map(i=>`<div class="issue ${i.severity}"><div>${i.message}</div><div class="sug">${i.suggestion}</div></div>`).join("");
+  const unplaced = (r.unplaced||[]).map(u=>`<div class="issue"><div>${u.message}</div><div class="sug">${u.suggestion}</div></div>`).join("");
+  const viol = (r.violations||[]).map(v=>`<div class="issue error">${v.message}</div>`).join("");
+  return `<div class="card">
+    <div class="row">${badge}</div>
+    ${issues ? `<h2 style="margin-top:14px">Feasibility notes</h2>${issues}` : ""}
+    ${unplaced ? `<h2 style="margin-top:14px">Conflict report — classes that couldn't be placed</h2>${unplaced}` : ""}
+    ${viol ? `<h2 style="margin-top:14px">Post-generation check found issues</h2>${viol}` : (r.status ? `<p class="hint" style="margin-top:14px">Independent validator re-checked every hard constraint on the generated entries: no violations found.</p>` : "")}
+  </div>`;
+}
+
+// ---------------------------------------------------------------- TIMETABLE
+async function renderTimetable(){
+  const c = CACHE;
+  const kind = TAB_TT_KIND || "division";
+  const options = kind==="division" ? c.divisions : kind==="faculty" ? c.faculty : c.rooms;
+  $("#main").innerHTML = `
+  <div class="row">
+    <select id="pick-kind">
+      <option value="division">By division</option>
+      <option value="faculty">By faculty</option>
+      <option value="room">By room</option>
+    </select>
+    <select id="pick-id" class="picker"></select>
+    <button class="btn secondary" id="csv">Export CSV</button>
+    <button class="btn secondary" id="validate">Validate current timetable</button>
+  </div>
+  <div id="tt-area"></div>
+  <div id="validation"></div>`;
+  $("#pick-kind").value = kind;
+  const fill = () => {
+    const opts = kind==="division" ? c.divisions : kind==="faculty" ? c.faculty : c.rooms;
+    $("#pick-id").innerHTML = opts.map(o=>`<option value="${o.id}">${o.name}</option>`).join("") || `<option>None yet — add one in Setup</option>`;
+  };
+  fill();
+  $("#pick-kind").onchange = ()=>{ TAB_TT_KIND = $("#pick-kind").value; renderTimetable(); };
+  $("#pick-id").onchange = drawGrid;
+  $("#csv").onclick = ()=>{
+    const id = $("#pick-id").value;
+    const q = TAB_TT_KIND==="division" || !TAB_TT_KIND ? `?division_id=${id}` : "";
+    window.open("/api/export.csv" + q, "_blank");
+  };
+  $("#validate").onclick = async ()=>{
+    const v = await get("/api/validate");
+    $("#validation").innerHTML = `<div class="card"><h2>${v.valid ? "Valid" : "Issues found"}</h2>
+      ${v.valid ? `<p class="hint">${v.entries} scheduled periods checked, no hard-constraint violations, and every subject has its full weekly hours.</p>`
+        : v.violations.map(x=>`<div class="issue error">${x.message}</div>`).join("")}</div>`;
+  };
+  await drawGrid();
+}
+let TAB_TT_KIND = "division";
+
+async function drawGrid(){
+  const c = CACHE;
+  const kind = $("#pick-kind").value;
+  const id = $("#pick-id").value;
+  const area = $("#tt-area");
+  if(!id){ area.innerHTML = `<div class="empty-state">Add data in Setup, then generate a timetable.</div>`; return; }
+  const q = kind==="division" ? `division_id=${id}` : kind==="faculty" ? `faculty_id=${id}` : `room_id=${id}`;
+  const rows = await get(`/api/timetable?${q}`);
+  const grid = {};
+  rows.forEach(r=>{ grid[`${r.day}-${r.period}`] = r; });
+  const days = SETTINGS.days, periods = SETTINGS.periods, la = SETTINGS.lunch_after;
+  let html = `<div class="tt-wrap"><table class="tt"><thead><tr><th></th>${DAYS.slice(0,days).map(d=>`<th>${d}</th>`).join("")}</tr></thead><tbody>`;
+  for(let p=1;p<=periods;p++){
+    html += `<tr><td class="period-col">P${p}</td>`;
+    for(let d=0; d<days; d++){
+      const e = grid[`${d}-${p}`];
+      if(e){
+        html += `<td><div class="cell ${e.is_lab?'lab':'theory'}" draggable="true" data-id="${e.id}" data-block="${e.block_id}">
+          <b>${e.subject_code||e.subject}</b>
+          <div class="meta">${kind==="division"?e.faculty:name(c.divisions,e.division_id)}</div>
+          <div class="meta">${kind==="room"?"":e.room}</div>
+        </div></td>`;
+      } else {
+        html += `<td><div class="cell empty" data-day="${d}" data-period="${p}"></div></td>`;
+      }
+    }
+    html += `</tr>`;
+    if(p===la){
+      html += `<tr class="lunch-row"><td></td>${Array(days).fill(`<td><div class="lunch-bar">lunch</div></td>`).join("")}</tr>`;
+    }
+  }
+  html += `</tbody></table></div>
+  <p class="hint">Drag a class onto an empty slot to reschedule it. Moves that would break a hard constraint (double-booking, wrong room type, lunch crossing, faculty limits) are rejected with the reason.</p>`;
+  area.innerHTML = html;
+  if(!rows.length){ area.innerHTML = `<div class="empty-state">No classes scheduled yet for this selection. Generate a timetable first.</div>` + area.innerHTML; }
+  wireDrag();
+}
+
+function wireDrag(){
+  let dragId = null, dragBlock = null;
+  document.querySelectorAll(".cell[draggable]").forEach(el=>{
+    el.addEventListener("dragstart", ()=>{ dragId = el.dataset.id; dragBlock = el.dataset.block; });
+  });
+  document.querySelectorAll(".cell.empty").forEach(el=>{
+    el.addEventListener("dragover", e=>{ e.preventDefault(); el.classList.add("drag-over"); });
+    el.addEventListener("dragleave", ()=> el.classList.remove("drag-over"));
+    el.addEventListener("drop", async e=>{
+      e.preventDefault(); el.classList.remove("drag-over");
+      if(!dragId) return;
+      try{
+        await post("/api/timetable/move", {entry_id:+dragId, day:+el.dataset.day, period:+el.dataset.period});
+        toast("Moved."); await drawGrid();
+      }catch(err){ toast(err.message); }
+    });
+  });
+}
+
+// ---------------------------------------------------------------- INSIGHTS
+async function renderInsights(){
+  const s = await get("/api/stats");
+  const rooms = s.rooms.map(r=>`
+    <tr><td>${r.name}</td><td>${r.type}</td><td>${r.used}/${s.total_slots}</td>
+    <td><div class="stat-bar"><span style="width:${r.utilisation}%"></span></div></td></tr>`).join("");
+  const fac = s.faculty.map(f=>`
+    <tr><td>${f.name}</td><td>${f.periods}</td><td>${f.per_day.map((n,i)=>`${DAYS[i]} ${n}`).join(" · ")}</td></tr>`).join("");
+  $("#main").innerHTML = `
+  <div class="grid">
+    <div class="card">
+      <h2>Room utilisation</h2>
+      <table><thead><tr><th>Room</th><th>Type</th><th>Used</th><th></th></tr></thead>
+      <tbody>${rooms || `<tr><td class="empty-state">No data yet.</td></tr>`}</tbody></table>
+    </div>
+    <div class="card">
+      <h2>Faculty workload</h2>
+      <table><thead><tr><th>Faculty</th><th>Weekly periods</th><th>Per day</th></tr></thead>
+      <tbody>${fac || `<tr><td class="empty-state">No data yet.</td></tr>`}</tbody></table>
+    </div>
+  </div>`;
+}
+
+// ---------------------------------------------------------------- actions
+async function seedDemo(scenario){
+  try{ await post(`/api/seed?scenario=${scenario}`); toast(`Loaded ${scenario} demo data.`); TAB="setup"; render(); }
+  catch(e){ toast(e.message); }
+}
+async function resetAll(){
+  if(!confirm("This clears all data. Continue?")) return;
+  try{ await post("/api/reset"); toast("Cleared."); render(); }
+  catch(e){ toast(e.message); }
+}
+
+render();
+</script>
+</body>
+</html>
